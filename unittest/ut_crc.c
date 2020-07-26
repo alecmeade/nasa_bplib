@@ -20,7 +20,6 @@
  INCLUDES
  ******************************************************************************/
 
-#include "bplib.h"
 #include "crc.h"
 #include "ut_assert.h"
 

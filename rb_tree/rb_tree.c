@@ -20,8 +20,6 @@
  INCLUDES
  ******************************************************************************/
 
-#include "bplib.h"
-#include "bundle_types.h"
 #include "rb_tree.h"
 
 /******************************************************************************
@@ -32,9 +30,16 @@
    than the max data size because since we are representing ranges. Thus in the worse case
    scenario where values are added one apart so that a new node is added for each insertion
    once we reach half + 1 nodes then merging will occur. */
-#define MAX_TREE_SIZE ((BP_MAX_ENCODED_VALUE / 2) + 1)
+#define RB_MAX_ENCODED_VALUE INT_MAX
+#define MAX_TREE_SIZE ((RB_MAX_ENCODED_VALUE / 2) + 1)
 #define RED   true  /* Boolean representing a red rb_node_t. */
 #define BLACK false /* Boolean representing a black rb_node_t, */
+
+/* Success and failure function codes. */
+#define RB_SUCCESS 1
+#define RB_ERROR 2
+#define RB_DUPLICATE 3
+#define RB_FULL 4
 
 /******************************************************************************
  LOCAL FUNCTIONS
@@ -47,7 +52,7 @@
  * returns: A ptr to a free block of memory to allocate an rb_node_t. If no space is available
  *      a NULL ptr is returned. If the ptr is non NULL the tree's size is incremented.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE rb_node_t* pop_free_node(rb_tree_t* tree)
+rb_node_t* pop_free_node(rb_tree_t* tree)
 {
     rb_node_t* free_node = tree->free_node_tail;
 
@@ -68,7 +73,7 @@ BP_LOCAL_SCOPE rb_node_t* pop_free_node(rb_tree_t* tree)
  * tree: A ptr to a rb_tree_t. The trees size is decremented after pushing the node. [OUTPUT]
  * node: A ptr to a rb_node_t to reassign that can now be treated as unallocated memory.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void push_free_node(rb_tree_t* tree, rb_node_t* node)
+void push_free_node(rb_tree_t* tree, rb_node_t* node)
 {
     /* Push the node into the queue */
     node->right = tree->free_node_head;
@@ -217,7 +222,7 @@ static inline bool has_right_child(rb_node_t* node)
  *
  * node: A ptr to an rb_node_t to remove references to it in its parent. [OUTPUT]
  *--------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void remove_from_parent(rb_node_t* node)
+void remove_from_parent(rb_node_t* node)
 {
     if (is_root(node))
     {
@@ -253,7 +258,7 @@ BP_LOCAL_SCOPE void remove_from_parent(rb_node_t* node)
  *      in the tree when swapping parents. [OUTPUT]
  * tree: A ptr to the red black to within which to swap parents. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void swap_parents(rb_node_t* node_1, rb_node_t* node_2, rb_tree_t* tree)
+void swap_parents(rb_node_t* node_1, rb_node_t* node_2, rb_tree_t* tree)
 {
     node_2->parent = node_1->parent;
 
@@ -288,7 +293,7 @@ BP_LOCAL_SCOPE void swap_parents(rb_node_t* node_1, rb_node_t* node_2, rb_tree_t
  * tree: A ptr to a rb_tree_t to rotate. [OUTPUT]
  * node: A ptr to a rb_node_t about which to rotate the red black tree left. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void rotate_left(rb_tree_t* tree, rb_node_t* node)
+void rotate_left(rb_tree_t* tree, rb_node_t* node)
 {
     assert(node->right);
 
@@ -319,7 +324,7 @@ BP_LOCAL_SCOPE void rotate_left(rb_tree_t* tree, rb_node_t* node)
  * tree: A ptr to a rb_tree_t to rotate. [OUTPUT]
  * node: A ptr to a rb_node_t about which to rotate the red black tree right. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void rotate_right(rb_tree_t* tree, rb_node_t* node)
+void rotate_right(rb_tree_t* tree, rb_node_t* node)
 {
     assert(node->left);
 
@@ -343,7 +348,7 @@ BP_LOCAL_SCOPE void rotate_right(rb_tree_t* tree, rb_node_t* node)
  * tree: A ptr to a rb_tree_t from which to obtain free memory  the new node. [OUTPUT]
  * returns: A ptr to a new rb_node_t or NULL if no memory exists in the rb_tree_t.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE rb_node_t* create_rb_node(bp_val_t value, bool color, rb_tree_t* tree)
+rb_node_t* create_rb_node(int value, bool color, rb_tree_t* tree)
 {
     rb_node_t* node = pop_free_node(tree);
     if (node == NULL)
@@ -371,7 +376,7 @@ BP_LOCAL_SCOPE rb_node_t* create_rb_node(bp_val_t value, bool color, rb_tree_t* 
  * child_ptr: A ptr to a ptr owned by parent that will be assigned to its new child node.
  *      This ptr should correspond to either parent->left or parent->right. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void insert_child(rb_node_t* node, rb_node_t* parent, rb_node_t** child_ptr)
+void insert_child(rb_node_t* node, rb_node_t* parent, rb_node_t** child_ptr)
 {
     node->parent = parent;
     *child_ptr = node;
@@ -392,7 +397,7 @@ BP_LOCAL_SCOPE void insert_child(rb_node_t* node, rb_node_t* parent, rb_node_t**
  * returns: A ptr to the successor node with a value less than that contained by node. If
  *      no successor exists, NULL is returned.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE rb_node_t* get_left_successor(rb_node_t* node)
+rb_node_t* get_left_successor(rb_node_t* node)
 {
     if (!has_left_child(node))
     {
@@ -423,7 +428,7 @@ BP_LOCAL_SCOPE rb_node_t* get_left_successor(rb_node_t* node)
  * returns: A ptr to the successor node with a value less than that contained by node. If
  *      no successor exists, NULL is returned.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE rb_node_t* get_right_successor(rb_node_t* node)
+rb_node_t* get_right_successor(rb_node_t* node)
 {
     if (!has_right_child(node))
     {
@@ -445,7 +450,7 @@ BP_LOCAL_SCOPE rb_node_t* get_right_successor(rb_node_t* node)
  * node: A ptr to the node to obtain its successor. [INPUT]
  * returns: A ptr to the successor node. If no successor exists, NULL is returned.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE rb_node_t* get_successor(rb_node_t* node)
+rb_node_t* get_successor(rb_node_t* node)
 {
     rb_node_t* successor = get_left_successor(node);
     if (successor == NULL)
@@ -463,9 +468,9 @@ BP_LOCAL_SCOPE rb_node_t* get_successor(rb_node_t* node)
  * n1: A ptr to the first rb_node_t to swap its value. [OUTPUT]
  * n2: A ptr to the second rb_node_t to swap its value. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void swap_values(rb_node_t* n1, rb_node_t* n2)
+void swap_values(rb_node_t* n1, rb_node_t* n2)
 {
-    bp_val_t temp = n1->range.value;
+    int temp = n1->range.value;
     n1->range.value = n2->range.value;
     n2->range.value = temp;
 }
@@ -476,9 +481,9 @@ BP_LOCAL_SCOPE void swap_values(rb_node_t* n1, rb_node_t* n2)
  * n1: A ptr to the first rb_node_t to swap its offset. [OUTPUT]
  * n2: A ptr to the second rb_node_t to swap its offset. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void swap_offsets(rb_node_t* n1, rb_node_t* n2)
+void swap_offsets(rb_node_t* n1, rb_node_t* n2)
 {
-    bp_val_t temp = n1->range.offset;
+    int temp = n1->range.offset;
     n1->range.offset = n2->range.offset;
     n2->range.offset = temp;
 }
@@ -489,7 +494,7 @@ BP_LOCAL_SCOPE void swap_offsets(rb_node_t* n1, rb_node_t* n2)
  * node: A ptr to the rb_node_t to replace with its child. [OUTPUT]
  * child: A ptr to an rb_node_t that is a child of node and will replace it. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void replace_node(rb_node_t* node, rb_node_t* child)
+void replace_node(rb_node_t* node, rb_node_t* child)
 {
     rb_node_t* parent = node->parent;
 
@@ -524,7 +529,7 @@ BP_LOCAL_SCOPE void replace_node(rb_node_t* node, rb_node_t* child)
  * Retrieved 14:34, June 20, 2019,
  * from https://en.wikipedia.org/w/index.php?title=Red%E2%80%93black_tree&oldid=902059008
  *--------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void delete_rebalance(rb_tree_t* tree, rb_node_t* node) {
+void delete_rebalance(rb_tree_t* tree, rb_node_t* node) {
 
     /* DELETE_CASE_1 - If node is ever set to root rebalancing for deletion is complete. */
     while (!is_root(node))
@@ -699,7 +704,7 @@ BP_LOCAL_SCOPE void delete_rebalance(rb_tree_t* tree, rb_node_t* node) {
  * Retrieved 14:34, June 20, 2019,
  * from https://en.wikipedia.org/w/index.php?title=Red%E2%80%93black_tree&oldid=902059008
  *--------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void delete_one_child(rb_tree_t* tree, rb_node_t* node)
+void delete_one_child(rb_tree_t* tree, rb_node_t* node)
 {
     rb_node_t* child = has_left_child(node) ? node->left : node->right;
 
@@ -753,7 +758,7 @@ BP_LOCAL_SCOPE void delete_one_child(rb_tree_t* tree, rb_node_t* node)
  * tree: A ptr to the rb_tree_t from which to delete an rb_node. [OUTPUT]
  * node: A ptr to the rb_node_t to delete from the tree. [OUTPUT]
  *--------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void delete_rb_node(rb_tree_t* tree, rb_node_t* node)
+void delete_rb_node(rb_tree_t* tree, rb_node_t* node)
 {
     /* Attempt to find a successor node for the current node. */
     rb_node_t* successor_node = get_successor(node);
@@ -795,9 +800,9 @@ BP_LOCAL_SCOPE void delete_rb_node(rb_tree_t* tree, rb_node_t* node)
  * value_2: The greater of the two potentially consecutive values. [INPUT]
  * returns: Whether value_2 is the consecutive integer after value_1.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE bool are_consecutive(bp_val_t value_1, bp_val_t value_2)
+bool are_consecutive(int value_1, int value_2)
 {
-    return (value_1 != BP_MAX_ENCODED_VALUE) && (value_1 + 1 == value_2);
+    return (value_1 != RB_MAX_ENCODED_VALUE) && (value_1 + 1 == value_2);
 }
 
 /*--------------------------------------------------------------------------------------
@@ -812,7 +817,7 @@ BP_LOCAL_SCOPE bool are_consecutive(bp_val_t value_1, bp_val_t value_2)
  *      inserted. [OUTPUT]
  * returns: A rb_tree status indicating the result of the insertion attempt.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, rb_node_t** inserted_node)
+int try_binary_insert_or_merge(int value, rb_tree_t* tree, rb_node_t** inserted_node)
 {
     int status;
     *inserted_node = NULL;
@@ -821,7 +826,7 @@ BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, r
     {
         /* The tree is empty and so a root node is created. */
         tree->root = create_rb_node(value,  BLACK, tree);
-        status = BP_SUCCESS;
+        status = RB_SUCCESS;
         *inserted_node = tree->root;
     }
     else
@@ -842,7 +847,7 @@ BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, r
                     node->range.value = successor->range.value;
                     node->range.offset += successor->range.offset + 2;
                     delete_rb_node(tree, successor);
-                    status = BP_SUCCESS;
+                    status = RB_SUCCESS;
                     break;
                 }
                 else
@@ -850,7 +855,7 @@ BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, r
                     /* Merge the new value into the current node. */
                     node->range.value = value;
                     node->range.offset += 1;
-                    status = BP_SUCCESS;
+                    status = RB_SUCCESS;
                     break;
                 }
             }
@@ -871,11 +876,11 @@ BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, r
                     if (*inserted_node == NULL)
                     {
                         /* There was no memory remaining for inserting a new child. */
-                        status = BP_FULL;
+                        status = RB_FULL;
                         break;
                     }
                     insert_child(*inserted_node, node, &node->left);
-                    status = BP_SUCCESS;
+                    status = RB_SUCCESS;
                     break;
                 }
 
@@ -891,13 +896,13 @@ BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, r
                        and so we can merge the three values into a single node. */
                     node->range.offset += successor->range.offset + 2;
                     delete_rb_node(tree, successor);
-                    status = BP_SUCCESS;
+                    status = RB_SUCCESS;
                     break;
                 }
                 else
                 {
                     node->range.offset += 1;
-                    status = BP_SUCCESS;
+                    status = RB_SUCCESS;
                     break;
                 }
             }
@@ -918,18 +923,18 @@ BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, r
                     if (*inserted_node == NULL)
                     {
                         /* There was no memory remaining for inserting a new child. */
-                        status = BP_FULL;
+                        status = RB_FULL;
                         break;
                     }
                     insert_child(*inserted_node, node, &node->right);
-                    status = BP_SUCCESS;
+                    status = RB_SUCCESS;
                     break;
                 }
             }
             else
             {
                 /* Value already exists within the tree. Do not insert any duplicates. */
-                status = BP_DUPLICATE;
+                status = RB_DUPLICATE;
                 break;
             }
         }
@@ -951,7 +956,7 @@ BP_LOCAL_SCOPE int try_binary_insert_or_merge(bp_val_t value, rb_tree_t* tree, r
  * Retrieved 14:34, June 20, 2019,
  * from https://en.wikipedia.org/w/index.php?title=Red%E2%80%93black_tree&oldid=902059008
  *--------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void try_insert_rebalance(rb_tree_t* tree, rb_node_t* node)
+void try_insert_rebalance(rb_tree_t* tree, rb_node_t* node)
 {
     while(true)
     {
@@ -1034,7 +1039,7 @@ BP_LOCAL_SCOPE void try_insert_rebalance(rb_tree_t* tree, rb_node_t* node)
  * tree: A ptr to an rb_tree from which to remove the provided node. [OUTPUT]
  * node: A ptr to an rb_node to delete and remove references to it in its parent. [OUTPUT]
  *--------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void delete_rb_node_without_rebalancing(rb_tree_t* tree, rb_node_t* node)
+void delete_rb_node_without_rebalancing(rb_tree_t* tree, rb_node_t* node)
 {
     if (!is_root(node))
     {
@@ -1072,7 +1077,7 @@ BP_LOCAL_SCOPE void delete_rb_node_without_rebalancing(rb_tree_t* tree, rb_node_
  * returns: A ptr to a rb_node_t to populate with the identified node. This is set to NULL
  *      if no node is found.
  *--------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE rb_node_t* rb_tree_binary_search(rb_tree_t* tree, bp_val_t value)
+rb_node_t* rb_tree_binary_search(rb_tree_t* tree, int value)
 {
     rb_node_t* node = tree->root;
     while(node != NULL)
@@ -1105,11 +1110,11 @@ BP_LOCAL_SCOPE rb_node_t* rb_tree_binary_search(rb_tree_t* tree, bp_val_t value)
  * max_size: The maximum number of allowable nodes within the red black tree.
  * tree: A rb_tree_t to allocate memory to.
  *--------------------------------------------------------------------------------------*/
-int rb_tree_create(bp_val_t max_size, rb_tree_t* tree)
+int rb_tree_create(int max_size, rb_tree_t* tree)
 {
     if (tree == NULL)
     {
-        return BP_ERROR;
+        return RB_ERROR;
     }
 
     tree->size = 0;
@@ -1124,12 +1129,12 @@ int rb_tree_create(bp_val_t max_size, rb_tree_t* tree)
     if ((max_size == 0) || (max_size > MAX_TREE_SIZE))
     {
         /* Tree values are not able to represent requested range */
-        return BP_ERROR;
+        return RB_ERROR;
     }
-    else if(max_size >= (BP_MAX_ENCODED_VALUE / sizeof(rb_node_t)))
+    else if(max_size >= (RB_MAX_ENCODED_VALUE / sizeof(rb_node_t)))
     {
         /* Memory allocation request below will rollover */
-        return BP_ERROR;
+        return RB_ERROR;
     }
 
     /* Size starts maxed out until free blocks are allocated. */
@@ -1138,11 +1143,11 @@ int rb_tree_create(bp_val_t max_size, rb_tree_t* tree)
 
     /* Allocate a block of memory for the nodes in the tree and add them all to the
        the free nodes queue. */
-    tree->node_block = (rb_node_t*) bplib_os_calloc(max_size * sizeof(rb_node_t));
+    tree->node_block = (rb_node_t*) calloc(max_size, sizeof(rb_node_t));
     if (tree->node_block == NULL)
     {
         /* If no memory is allocated return an empty tree. */
-        return BP_ERROR;
+        return RB_ERROR;
     }
 
     rb_node_t* start = tree->node_block;
@@ -1153,7 +1158,7 @@ int rb_tree_create(bp_val_t max_size, rb_tree_t* tree)
         push_free_node(tree, start);
     }
 
-    return BP_SUCCESS;
+    return RB_SUCCESS;
 }
 
 /*--------------------------------------------------------------------------------------
@@ -1167,12 +1172,12 @@ int rb_tree_clear(rb_tree_t* tree)
 {
     if (tree == NULL)
     {
-        return BP_ERROR;
+        return RB_ERROR;
     }
 
     if (rb_tree_is_empty(tree))
     {
-        return BP_SUCCESS;
+        return RB_SUCCESS;
     }
 
     rb_node_t* node = tree->root;
@@ -1193,7 +1198,7 @@ int rb_tree_clear(rb_tree_t* tree)
         node = node->parent;
     }
 
-    return BP_SUCCESS;
+    return RB_SUCCESS;
 }
 
 /*--------------------------------------------------------------------------------------
@@ -1226,17 +1231,17 @@ bool rb_tree_is_full(rb_tree_t *tree)
  * tree: A ptr to a rb_tree_t to insert the value into. [OUTPUT]
  * returns: An int enum indicating the result of the insertion.
  *--------------------------------------------------------------------------------------*/
-int rb_tree_insert(bp_val_t value, rb_tree_t* tree)
+int rb_tree_insert(int value, rb_tree_t* tree)
 {
     if ((tree == NULL) || (tree->node_block == NULL) || (tree->max_size == 0))
     {
-        return BP_ERROR;
+        return RB_ERROR;
     }
 
     rb_node_t* inserted_node = NULL;
     int status = try_binary_insert_or_merge(value, tree, &inserted_node);
 
-    if (status == BP_SUCCESS && inserted_node != NULL)
+    if (status == RB_SUCCESS && inserted_node != NULL)
     {
         /* Correct any violations within the red black tree due to the insertion. */
         try_insert_rebalance(tree, inserted_node);
@@ -1252,19 +1257,19 @@ int rb_tree_insert(bp_val_t value, rb_tree_t* tree)
  * tree: A ptr to a rb_tree_t to delete value from. [OUTPUT]
  * returns: An int enum indicating the result of the deletion.
  *--------------------------------------------------------------------------------------*/
-int rb_tree_delete(bp_val_t value, rb_tree_t* tree)
+int rb_tree_delete(int value, rb_tree_t* tree)
 {
     if (tree == NULL)
     {
-        return BP_ERROR;
+        return RB_ERROR;
     }
 
     rb_node_t* node = rb_tree_binary_search(tree, value);
-    int status = BP_SUCCESS;
+    int status = RB_SUCCESS;
     if (node == NULL)
     {
         /* No node containing value was found. */
-        status = BP_ERROR;
+        status = RB_ERROR;
     }
     else
     {
@@ -1293,7 +1298,7 @@ int rb_tree_delete(bp_val_t value, rb_tree_t* tree)
                    node must be split. */
                 rb_node_t* upper_node = NULL;
                 status = try_binary_insert_or_merge(value + 1, tree, &upper_node);
-                if (status == BP_SUCCESS)
+                if (status == RB_SUCCESS)
                 {
                     /* The checks above that determine that the value is not at the
                        beginning or end of the range necessitates that adding one to
@@ -1309,7 +1314,7 @@ int rb_tree_delete(bp_val_t value, rb_tree_t* tree)
 
                 /* Failure in inserting the new upper range node into the tree. In theory
                    this should only ever be caused by a lack of memory in the tree. */
-                assert(status == BP_SUCCESS || status == BP_FULL);
+                assert(status == RB_SUCCESS || status == RB_FULL);
             }
         }
     }
@@ -1326,16 +1331,16 @@ int rb_tree_destroy(rb_tree_t* tree)
 {
     if (tree == NULL)
     {
-        return BP_ERROR;
+        return RB_ERROR;
     }
 
     if(tree->node_block != NULL)
     {
-        bplib_os_free(tree->node_block);
+        free(tree->node_block);
         tree->node_block = NULL;
     }
 
-    return BP_SUCCESS;
+    return RB_SUCCESS;
 }
 
 /*--------------------------------------------------------------------------------------
@@ -1365,7 +1370,7 @@ int rb_tree_goto_first(rb_tree_t* tree)
         }
     }
 
-    return BP_SUCCESS;
+    return RB_SUCCESS;
 }
 
  /*--------------------------------------------------------------------------------------
@@ -1375,7 +1380,7 @@ int rb_tree_goto_first(rb_tree_t* tree)
  *      nodes remain in the tree to ensure that the tree's operation does not degrade.
  *
  * tree: A ptr to a rb_tree_t to identify the lowest range. [OUTPUT]
- * range: A ptr to a bp_range_t to update with the next range. [OUTPUT]
+ * range: A ptr to a rb_range_tree to update with the next range. [OUTPUT]
  * should_pop: A boolean determining whether or not the node pointed to by iterator at the start of
  *      of the function call should be deleted from the tree. [INPUT]
  * should_rebalance: A boolean determining whether or not the tree should be balanced upon
@@ -1405,7 +1410,7 @@ int rb_tree_get_next(rb_tree_t* tree, rb_range_t* range, bool should_pop, bool s
         /* Remove the node and rebalance the tree. Iter must be recalculated. */
         delete_rb_node(tree, delete_node);
         rb_tree_goto_first(tree);
-        return BP_SUCCESS;
+        return RB_SUCCESS;
     }
 
     /* Node hasn't been traversed. This means we are at a leaf. */
@@ -1439,5 +1444,5 @@ int rb_tree_get_next(rb_tree_t* tree, rb_range_t* range, bool should_pop, bool s
         delete_rb_node_without_rebalancing(tree, delete_node);
     }
 
-    return BP_SUCCESS;
+    return RB_SUCCESS;
 }

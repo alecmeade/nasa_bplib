@@ -20,8 +20,15 @@
  INCLUDES
  ******************************************************************************/
 
-#include "bplib.h"
 #include "crc.h"
+
+/******************************************************************************
+ DEFINES
+ ******************************************************************************/
+
+#define RB_SUCCESS 1
+#define RB_ERROR   2
+
 
 /******************************************************************************
  FILE DATA
@@ -67,7 +74,7 @@ static inline uint8_t reflect8(uint8_t num)
  *
  * num: A uint16_t to reflect. [INPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE uint16_t reflect16(uint16_t num)
+uint16_t reflect16(uint16_t num)
 {
     uint16_t reflected_num = 0;
     uint8_t* num_bytes = (uint8_t *) &num;
@@ -82,7 +89,7 @@ BP_LOCAL_SCOPE uint16_t reflect16(uint16_t num)
  *
  * num: A uint32_t to reflect. [INPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE uint32_t reflect32(uint32_t num)
+uint32_t reflect32(uint32_t num)
 {
     uint32_t reflected_num = 0;
     uint8_t* num_bytes = (uint8_t *) &num;
@@ -105,7 +112,7 @@ BP_LOCAL_SCOPE uint32_t reflect32(uint32_t num)
  *
  * returns: A crc remainder of the provided data.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE uint16_t get_crc16(const uint8_t* data, const uint32_t length, const crc_parameters_t* params)
+uint16_t get_crc16(const uint8_t* data, const uint32_t length, const crc_parameters_t* params)
 {
     uint16_t crc = params->n_bit_params.crc16.initial_value;
     uint32_t i;
@@ -136,7 +143,7 @@ BP_LOCAL_SCOPE uint16_t get_crc16(const uint8_t* data, const uint32_t length, co
  *
  * returns: A crc remainder of the provided data.
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE uint32_t get_crc32(const uint8_t* data, const uint32_t length, const crc_parameters_t* params)
+uint32_t get_crc32(const uint8_t* data, const uint32_t length, const crc_parameters_t* params)
 {
     uint32_t crc = params->n_bit_params.crc32.initial_value;
     uint32_t i;
@@ -163,7 +170,7 @@ BP_LOCAL_SCOPE uint32_t get_crc32(const uint8_t* data, const uint32_t length, co
  *
  * params: A ptr to a crc_parameters_t to populate with a lookup table. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void init_crc16_table(crc_parameters_t* params)
+void init_crc16_table(crc_parameters_t* params)
 {
     uint16_t generator = params->n_bit_params.crc16.generator_polynomial;
     uint16_t* table = params->n_bit_params.crc16.xor_table;
@@ -187,7 +194,7 @@ BP_LOCAL_SCOPE void init_crc16_table(crc_parameters_t* params)
  *
  * params: A ptr to a crc_parameters_t to populate with a lookup table. [OUTPUT]
  *-------------------------------------------------------------------------------------*/
-BP_LOCAL_SCOPE void init_crc32_table(crc_parameters_t* params)
+void init_crc32_table(crc_parameters_t* params)
 {
     uint32_t generator = params->n_bit_params.crc32.generator_polynomial;
     uint32_t* table = params->n_bit_params.crc32.xor_table;
@@ -223,16 +230,16 @@ int crc_init(crc_parameters_t* params)
     if (params->length == 16)
     {
         init_crc16_table(params);
-        status = BP_SUCCESS;
+        status = RB_SUCCESS;
     }
     else if (params->length == 32)
     {
         init_crc32_table(params);
-        status = BP_SUCCESS;
+        status = RB_SUCCESS;
     }
     else
     {
-        status = BP_ERROR;
+        status = RB_ERROR;
     }
 
     return status;
