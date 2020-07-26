@@ -1,5 +1,5 @@
 /************************************************************************
- * File: unittest.c
+ * File: ut_assert.h
  *
  *  Copyright 2019 United States Government as represented by the
  *  Administrator of the National Aeronautics and Space Administration.
@@ -15,18 +15,13 @@
  *
  *************************************************************************/
 
+#ifndef _ut_rb_tree_h_
+#define _ut_rb_tree_h_
+
 /******************************************************************************
- INCLUDES
+ EXPORTED FUNCTIONS
  ******************************************************************************/
 
-#include <stdio.h>
-#include "ut_assert.h"
-#include "ut_crc.h"
-#include "ut_rb_tree.h"
+int ut_rb_tree (void);
 
-
-int main(int arc, const char* argv[])
-{
-    ut_rb_tree();
-    ut_crc();
-}
+#endif /* _ut_rb_tree_h_ */

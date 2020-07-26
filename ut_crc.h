@@ -1,5 +1,5 @@
 /************************************************************************
- * File: unittest.h
+ * File: ut_assert.h
  *
  *  Copyright 2019 United States Government as represented by the
  *  Administrator of the National Aeronautics and Space Administration.
@@ -14,14 +14,14 @@
  *  Joe-Paul Swinski, Code 582 NASA GSFC
  *
  *************************************************************************/
-#ifndef _unittest_h_
-#define _unittest_h_
+
+#ifndef _ut_crc_h_
+#define _ut_crc_h_
 
 /******************************************************************************
  EXPORTED FUNCTIONS
  ******************************************************************************/
 
-int bplib_unittest_crc      (void);
-int bplib_unittest_rb_tree  (void);
+int ut_crc (void);
 
-#endif /* _unittest_h_ */
+#endif /* _ut_crc_h_ */
