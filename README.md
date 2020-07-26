@@ -29,3 +29,7 @@ On some recurring interval the tree would get cleared and write its ranges in an
 
 ## Cyclical Redundancy Check
 The cyclical redudancy check libarary implemented here was designed for confirming the integrity of data transmitted through the bundle protocol. While this is a fairly standard library implementation, some extra thought and effort went into designing the modulous lookup table design and the architecture of the crc structures to be lightweight and extremely fast.
+
+## Licensing and Attribution
+While Alexander Meade is the author of most of the code within this directory some components have maintained or updated by J.P. Swinski. The code is licensed and 
+part of the larger [BPLib](https://github.com/nasa/bplib) project. All licensing and reuse requests should be directed toward the BPLib project owners. This directory is merely used to showcase some of the personal contributions of Alexander Meade.
